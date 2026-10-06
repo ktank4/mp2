@@ -1,121 +1,83 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
+import { useState, useEffect } from 'react'
+import axios from 'axios'
+import {Routes, Route, Link } from "react-router-dom";
 import './App.css'
+import Gallery from "./Gallery";
+import Details from "./Details";
 
-function App() {
-  const [count, setCount] = useState(0)
+export interface Pokemon {
+  id: number;
+  name: string;
+  base_experience: number;
+  abilities: { ability: { name: string } }[];
+  species: { name: string };
+  sprites: { front_default: string };
+  types: { type: { name: string } }[];
+}
+
+function ListView({ pokeResults }: { pokeResults: Pokemon[] }) {
+  const [query, setQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'base_experience'>('name'); //defualt is name
+  const [descending, isDescending] = useState(true);
+
+  const searchResults =  pokeResults.filter((p) => p.name.startsWith(query.trim().toLowerCase()))
+  const sortedResults = 
+    sortBy === 'name' ? 
+      descending? 
+      searchResults.sort((a,b)=> b.name.localeCompare(a.name)) : searchResults.sort((a,b)=>a.name.localeCompare(b.name)) 
+    : descending ? 
+    searchResults.sort((a,b)=> b.base_experience - a.base_experience) 
+    : searchResults.sort((a,b)=>  a.base_experience-  b.base_experience)
 
   return (
     <>
       <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
+      <h1>Pokemon Search</h1>
+      <Link className="link" to="/gallery">Gallery</Link>
+      <div className="filter">
+          <h3>Sort by:</h3>
+          <button className={sortBy === 'name' ?"button selected" : "button"}  type="button" onClick={() => setSortBy('name')}>Name</button>
+          <button className={sortBy === 'base_experience' ? "button selected" : "button"} type="button" onClick={() => setSortBy('base_experience')}>XP</button>
+          <button className={descending === false ? "button selected" : "button"} type="button" onClick={() => isDescending(false)}>Ascending</button>
+          <button className={descending === true ? "button selected" : "button"} type="button" onClick={() => isDescending(true)}>Descending</button>
+      </div>
+      <div className="search-box">
+        <label>
+          Search:
+          <input type="text" placeholder="e.g., Pikachu..." value={query} onChange={e => setQuery(e.target.value)}/>
+        </label>
+      </div>
+      <div className = "search-results">
+        {sortedResults.map((p) => (
+          <Link key={p.id} to={`/pokemon/${p.id}`} className="gallery-item">
+            <h4>{p.name}</h4>
+            <h4>XP: {p.base_experience}</h4>
+            <img src={p.sprites.front_default} alt={p.name} />
+          </Link>
+        ))}
+      </div>
       </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
     </>
+  )
+}
+
+function App() {
+  const [pokeResults, setPokeResults] = useState<Pokemon[]>([]);//default is empty
+  useEffect(() => {
+    const ids = Array.from({ length: 151 }, (_, i) => i + 1);//array of the ids
+    Promise.all( //wait to get all pokemon at once, goes through each id
+      ids.map((id) => axios.get<Pokemon>(`https://pokeapi.co/api/v2/pokemon/${id}/`))
+    )
+      .then((responses) => setPokeResults(responses.map((r) => r.data)))
+      .catch((err) => console.error(err));
+  }, []);
+
+  return (
+    <Routes>
+      <Route path="/" element={<ListView pokeResults={pokeResults} />} />
+      <Route path="/gallery" element={<Gallery pokeResults={pokeResults} />} />
+      <Route path="/pokemon/:id" element={<Details pokeResults={pokeResults} />} />
+    </Routes>
   )
 }
 
